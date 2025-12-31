@@ -1,48 +1,82 @@
+import os
+import sys
 from pendulum import datetime
-from airflow.sdk import DAG
-from airflow.providers.standard.operators.bash import BashOperator
-from airflow.providers.standard.operators.python import PythonOperator, BranchPythonOperator
-from airflow.utils.trigger_rule import TriggerRule
 from pathlib import Path
+from airflow.decorators import dag, task
+from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
+from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
+from airflow.utils.trigger_rule import TriggerRule
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from airflow_task.scripts.db_conn import (
+    get_setup_sql, get_copy_sql,
+    get_production_insert_sql
+)
 
-def check_ext(folder_path):
-    folder = Path(folder_path)
+@dag(
+    dag_id='wikipedia_dag',
+    start_date=datetime(2025, 12, 30),
+    schedule=None,
+    catchup=False,
+    tags=['snowflake', 'optimized']
+)
+def wikipedia_pipeline():
 
-    gz_files = list(folder.glob("*.gz"))
+    @task.branch(task_id="check_file_exists")
+    def check_ext_task(folder_path):
+        folder = Path(folder_path)
+        return "setup_snowflake" if list(folder.glob("*.gz")) else "download_file"
 
-    if gz_files:
-        return "process_data"
-    else:
-        print("No .gz file found. Downloading file ........")
-        return "download_file"
-
-def read_file(filepath):
-    with open(filepath, "r") as file:
-        return file.read()
-
-def process_func():
-    print("Processing data...")
-
-with DAG('file_check_download_dag', start_date=datetime(2025,12,30), schedule=None) as dag:
-
-    branch_task = BranchPythonOperator(
-        task_id="check_file_exists",
-        python_callable=check_ext,
-        op_kwargs={"folder_path": "/opt/airflow/dags/airflow_task/downloads"}
-    )
-
-    download_task = BashOperator(
+    download_file = BashOperator(
         task_id="download_file",
-        bash_command=read_file("/opt/airflow/dags/airflow_task/download/download.sh")
+        bash_command="bash /opt/airflow/dags/airflow_task/download/download.sh"
     )
 
-    process_task = PythonOperator(
-        task_id="process_data",
-        python_callable=process_func,
+    setup_snowflake = SQLExecuteQueryOperator(
+        task_id="setup_snowflake",
+        conn_id='snowflake_hook',
+        sql=get_setup_sql(),
         trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS
     )
 
+    @task(task_id="parse_file_to_csv")
+    def parse_to_csv():
+        from airflow_task.scripts.file_parser import dataframe_parser
+        return dataframe_parser()
 
-    branch_task >> [download_task, process_task]
-    download_task >> process_task
+    @task(task_id="upload_to_stage")
+    def upload_to_stage(local_csv_path):
+        hook = SnowflakeHook(snowflake_conn_id='snowflake_hook')
+        hook.run(f"PUT file://{local_csv_path} @WIKI_STAGING_STAGE OVERWRITE=TRUE")
+
+
+    copy_to_staging = SQLExecuteQueryOperator(
+        task_id="copy_into_staging",
+        conn_id='snowflake_hook',
+        sql=get_copy_sql()
+    )
+
+
+    insert_prod = SQLExecuteQueryOperator(
+        task_id="insert_into_production",
+        conn_id='snowflake_hook',
+        sql=get_production_insert_sql()
+    )
+
+
+    analyze_data = SQLExecuteQueryOperator(
+        task_id="companies_analysis",
+        conn_id='snowflake_hook',
+        sql="SELECT PAGE_TITLE, SUM(VIEW_COUNT) FROM WIKI_PAGES_VIEWS_FINAL GROUP BY 1;",
+        do_xcom_push=True
+    )
+
+    path_decision = check_ext_task("/opt/airflow/dags/airflow_task")
+    csv_path = parse_to_csv()
+
+    path_decision >> [download_file, setup_snowflake]
+    download_file >> setup_snowflake
+    setup_snowflake >> csv_path >> upload_to_stage(csv_path) >> copy_to_staging >> insert_prod >> analyze_data
+
+wikipedia_pipeline()
