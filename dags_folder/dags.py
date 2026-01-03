@@ -21,7 +21,7 @@ from airflow_task.scripts.db_conn import (
     start_date=datetime(2025, 12, 30),
     schedule=None,
     catchup=False,
-    tags=['snowflake', 'optimized']
+    tags=['snowflake', 'optimized', 'wiki_page_views']
 )
 def wikipedia_pipeline():
     """ Getting the function running """
