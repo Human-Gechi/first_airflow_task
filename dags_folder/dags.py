@@ -17,11 +17,12 @@ from airflow_task.scripts.db_conn import (
 )
 #Utilizing the domain dag for wikipedia
 @dag(
+    #DAG definition using the dag decorator
     dag_id='wikipedia_dag',
     start_date=datetime(2025, 12, 30),
     schedule=None,
     catchup=False,
-    tags=['snowflake', 'optimized', 'wiki_page_views']
+    tags=['snowflake', 'wiki_page_views']
 )
 def wikipedia_pipeline():
     """ Getting the using TaskFlow API pipeline running """
