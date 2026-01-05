@@ -43,8 +43,6 @@ def get_setup_sql():
             CREATE STAGE IF NOT EXISTS WIKI_STAGING_STAGE;
         """
 
-
-
 def get_copy_sql():
     """SQL for high-performance loading instead of loading with_pandas to prevent signal_9 errors in Airflow"""
     return """
