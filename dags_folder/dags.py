@@ -24,7 +24,7 @@ from airflow_task.scripts.db_conn import (
     tags=['snowflake', 'optimized', 'wiki_page_views']
 )
 def wikipedia_pipeline():
-    """ Getting the function running """
+    """ Getting the using TaskFlow API pipeline running """
 
     @task.branch(task_id="check_file_exists") #Using TaskFlow API alongside its decorator
     def check_ext_task(folder_path): #Checking file path
