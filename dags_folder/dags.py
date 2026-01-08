@@ -78,7 +78,6 @@ def wikipedia_pipeline():
     #Companies analysis
     analyze_data = PythonOperator(
         task_id="companies_analysis",
-        conn_id='snowflake_hook',
         python_callable=select_companies_to_list,
         do_xcom_push=True
     )

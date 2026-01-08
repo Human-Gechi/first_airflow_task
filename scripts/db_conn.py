@@ -44,7 +44,7 @@ def get_setup_sql():
         """
 
 def get_copy_sql():
-    """SQL code for high-performance loading instead of loading with_pandas to prevent signal_9 errors in Airflow"""
+    """SQL code for uploading instead of loading with_pandas to prevent signal_9 errors in Airflow"""
     return """
         COPY INTO WIKI_PAGES_VIEWS_STAGING
         FROM @WIKI_STAGING_STAGE
