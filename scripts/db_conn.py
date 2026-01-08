@@ -50,5 +50,5 @@ def get_production_insert_sql():
     """
 
 def select_companies_to_list():
-    return """SELECT PAGE_TITLE, SUM(VIEW_COUNT) FROM WIKI_PAGES_VIEWS_FINAL GROUP BY 1 ORDER BY SUM DESC LIMIT 1;"""
+    return """SELECT PAGE_TITLE, SUM(VIEW_COUNT) FROM WIKI_PAGES_VIEWS_FINAL GROUP BY 1 ORDER BY 2 DESC LIMIT 1;"""
 
