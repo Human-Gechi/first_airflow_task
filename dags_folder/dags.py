@@ -7,6 +7,7 @@ from airflow.decorators import dag, task
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
+from airflow.providers.standard.operators.python import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -75,10 +76,10 @@ def wikipedia_pipeline():
     )
 
     #Companies analysis
-    analyze_data = SQLExecuteQueryOperator(
+    analyze_data = PythonOperator(
         task_id="companies_analysis",
         conn_id='snowflake_hook',
-        sql=select_companies_to_list,
+        python_callable=select_companies_to_list,
         do_xcom_push=True
     )
     #CHecking file path
