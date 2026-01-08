@@ -6,24 +6,6 @@ import snowflake.connector
 
 load_dotenv()
 
-def get_snowflake_connection():
-    """Function to make a Snowflake Connection"""
-    try:
-        #Making Snowflake connection.
-        return snowflake.connector.connect(
-            user=os.getenv("SNOWFLAKE_USER"),
-            password=os.getenv("SNOWFLAKE_PASSWORD"),
-            account=os.getenv("SNOWFLAKE_ACCOUNT"),
-            warehouse=os.getenv("SNOWFLAKE_WAREHOUSE"),
-            database=os.getenv("SNOWFLAKE_DATABASE"),
-            schema=os.getenv("SNOWFLAKE_SCHEMA"),
-            role=os.getenv("SNOWFLAKE_ROLE")
-        )
-    except Exception as e:
-        #Error message
-        logger.error(f"Could not connect to Snowflake: {e}")
-        return None
-
 def get_setup_sql():
     """SQL code for creating tables and stage"""
     return  """   -- Create staging and final tables
@@ -68,5 +50,5 @@ def get_production_insert_sql():
     """
 
 def select_companies_to_list():
-    return """SELECT PAGE_TITLE, SUM(VIEW_COUNT) FROM WIKI_PAGES_VIEWS_FINAL GROUP BY 1;"""
+    return """SELECT PAGE_TITLE, SUM(VIEW_COUNT) FROM WIKI_PAGES_VIEWS_FINAL GROUP BY 1 ORDER BY SUM DESC LIMIT 1;"""
 
