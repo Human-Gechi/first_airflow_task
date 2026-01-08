@@ -25,7 +25,7 @@ def get_snowflake_connection():
         return None
 
 def get_setup_sql():
-    """SQL to initialize all required objects."""
+    """SQL code for creating tables and stage"""
     return  """   -- Create staging and final tables
             CREATE TABLE IF NOT EXISTS WIKI_PAGES_VIEWS_STAGING (
                 DOMAIN_CODE STRING,
@@ -44,7 +44,7 @@ def get_setup_sql():
         """
 
 def get_copy_sql():
-    """SQL for high-performance loading instead of loading with_pandas to prevent signal_9 errors in Airflow"""
+    """SQL code for high-performance loading instead of loading with_pandas to prevent signal_9 errors in Airflow"""
     return """
         COPY INTO WIKI_PAGES_VIEWS_STAGING
         FROM @WIKI_STAGING_STAGE
@@ -58,7 +58,7 @@ def get_copy_sql():
     """
 
 def get_production_insert_sql():
-    """SQL for moving data to the final layer."""
+    """SQL code for moving data to the final layer."""
     # Function to select just required companies e.g Amazon, Microsoft,Apple etc
     return """
         INSERT INTO WIKI_PAGES_VIEWS_FINAL (DOMAIN_CODE, PAGE_TITLE, VIEW_COUNT, RESPONSE_IN_BYTES)
