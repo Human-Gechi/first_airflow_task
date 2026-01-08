@@ -36,7 +36,8 @@ def wikipedia_pipeline():
     #BashOperator for file download
     download_file = BashOperator(
         task_id="download_file",
-        bash_command="bash /opt/airflow/dags/airflow_task/download/download.sh"
+        bash_command="bash download.sh",
+        cwd="/opt/airflow/dags/airflow_task/download/"
     )
 
     #Setting up Snowflake using the get_setup_sql func.
