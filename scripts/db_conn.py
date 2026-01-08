@@ -68,14 +68,5 @@ def get_production_insert_sql():
     """
 
 def select_companies_to_list():
-    """SQL for selecting company analysis"""
-    conn = get_snowflake_connection()
-    if not conn:
-        return [] #Return empty list of no connection was made
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT PAGE_TITLE, SUM(VIEW_COUNT) FROM WIKI_PAGES_VIEWS_FINAL GROUP BY 1;")
-           #Output message for companies in the group
-            return [{"company": r[0], "total_views": r[1]} for r in cur.fetchall()]
-    finally:
-        conn.close()
+    return """SELECT PAGE_TITLE, SUM(VIEW_COUNT) FROM WIKI_PAGES_VIEWS_FINAL GROUP BY 1;"""
+

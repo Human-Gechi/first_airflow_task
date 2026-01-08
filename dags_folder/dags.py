@@ -77,9 +77,10 @@ def wikipedia_pipeline():
     )
 
     #Companies analysis
-    analyze_data = PythonOperator(
+    analyze_data = SQLExecuteQueryOperator(
         task_id="companies_analysis",
-        python_callable=select_companies_to_list,
+        conn_id = "snowflake_hook",
+        sql=select_companies_to_list(),
         do_xcom_push=True
     )
     #CHecking file path
