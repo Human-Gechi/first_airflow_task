@@ -11,11 +11,11 @@ from airflow.providers.standard.operators.python import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-#Acessing file path for .py files
-from airflow_task.scripts.db_conn import (
-    get_setup_sql, get_copy_sql,
-    get_production_insert_sql, select_companies_to_list
-)
+from airflow_task.scripts.file_parser import dataframe_parser
+from airflow_task.scripts.db_conn import(
+        get_setup_sql, get_copy_sql,
+        get_production_insert_sql, select_companies_to_list
+    )
 #Utilizing the domain dag for wikipedia
 @dag(
     #DAG definition using the dag decorator
@@ -27,7 +27,7 @@ from airflow_task.scripts.db_conn import (
 )
 def wikipedia_pipeline():
     """ Getting the using TaskFlow API pipeline running """
-
+    #Acessing file path for .py files
     @task.branch(task_id="check_file_exists") #Using TaskFlow API alongside its decorator
     def check_ext_task(folder_path): #Checking file path
         folder = Path(folder_path) #Folder path
@@ -36,8 +36,8 @@ def wikipedia_pipeline():
     #BashOperator for file download
     download_file = BashOperator(
         task_id="download_file",
-        bash_command="bash download.sh",
-        cwd="/opt/airflow/dags/airflow_task/download/"
+        bash_command="bash download.sh ",
+        cwd="/opt/airflow/dags/airflow_task/dags_folder"
     )
 
     #Setting up Snowflake using the get_setup_sql func.
@@ -53,7 +53,7 @@ def wikipedia_pipeline():
     def parse_to_csv():
         """ CSV parsinf for temporary storage"""
         #File importation inside function to prevent dag failures
-        from airflow_task.scripts.file_parser import dataframe_parser
+
         return dataframe_parser()
 
     #Uploading file to staging table
