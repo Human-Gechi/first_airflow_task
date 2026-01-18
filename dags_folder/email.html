@@ -1,0 +1,14 @@
+ <html>
+        <body>
+            <h3>DAG Failed!</h3>
+            <p>DAG ID: {dag_run.dag_id}</p>
+            <p>Run ID: {dag_run.run_id}</p>
+            <p>Failed Tasks:</p>
+            <ul>
+                {% for ti in dag_run.get_task_instances(state='failed') %}
+                    <li>Task: {{ ti.task_id }}, Log URL: {{ ti.log_url }}</li>
+                {% endfor %}
+            </ul>
+            <p>View in Airflow UI: [Link to logs or DAG run page]</p>
+        </body>
+        </html>

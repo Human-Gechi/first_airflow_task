@@ -2,7 +2,8 @@
 import os
 from dotenv import load_dotenv
 from airflow_task.scripts.logs import logger
-import snowflake.connector
+from cryptography.fernet import Fernet
+
 
 load_dotenv()
 
@@ -13,14 +14,18 @@ def get_setup_sql():
                 DOMAIN_CODE STRING,
                 PAGE_TITLE STRING,
                 VIEW_COUNT NUMBER,
-                RESPONSE_IN_BYTES NUMBER
+                RESPONSE_IN_BYTES NUMBER,
+                HASH_KEY STRING, 
+                LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
             );
             CREATE TABLE IF NOT EXISTS WIKI_PAGES_VIEWS_FINAL (
                 DOMAIN_CODE STRING, 
                 PAGE_TITLE STRING, 
                 VIEW_COUNT NUMBER,
-                RESPONSE_IN_BYTES NUMBER, 
+                RESPONSE_IN_BYTES NUMBER,
+                HASH_KEY STRING,
                 LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+
             );
             CREATE STAGE IF NOT EXISTS WIKI_STAGING_STAGE;
         """
@@ -43,10 +48,19 @@ def get_production_insert_sql():
     """SQL code for moving data to the final layer."""
     # Function to select just required companies e.g Amazon, Microsoft,Apple etc
     return """
-        INSERT INTO WIKI_PAGES_VIEWS_FINAL (DOMAIN_CODE, PAGE_TITLE, VIEW_COUNT, RESPONSE_IN_BYTES)
-        SELECT DOMAIN_CODE, PAGE_TITLE, VIEW_COUNT, RESPONSE_IN_BYTES
-        FROM WIKI_PAGES_VIEWS_STAGING
-        WHERE PAGE_TITLE IN ('Amazon', 'Microsoft', 'Apple', 'Facebook', 'Google');
+      MERGE INTO WIKI_PAGES_VIEWS_FINAL AS target
+        USING (
+            SELECT DOMAIN_CODE, PAGE_TITLE, VIEW_COUNT, RESPONSE_IN_BYTES, HASH_KEY
+            FROM WIKI_PAGES_VIEWS_STAGING
+            WHERE PAGE_TITLE IN ('Amazon', 'Microsoft', 'Apple', 'Facebook', 'Google')
+            -- Deduplicate within staging first
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY HASH_KEY) = 1
+        ) AS source
+        ON target.HASH_KEY = source.HASH_KEY
+
+    WHEN NOT MATCHED THEN
+        INSERT (DOMAIN_CODE, PAGE_TITLE, VIEW_COUNT, RESPONSE_IN_BYTES, HASH_KEY)
+        VALUES (source.DOMAIN_CODE, source.PAGE_TITLE, source.VIEW_COUNT, source.RESPONSE_IN_BYTES, source.HASH_KEY);
     """
 
 def select_companies_to_list():

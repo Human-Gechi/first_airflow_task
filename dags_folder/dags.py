@@ -2,27 +2,49 @@
 import os
 import sys
 from pendulum import datetime
-from pathlib import Path
+from datetime import timedelta
 from airflow.decorators import dag, task
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
+from airflow.utils.email import send_email
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from airflow_task.scripts.file_parser import dataframe_parser
 from airflow_task.scripts.db_conn import(
         get_setup_sql, get_copy_sql,
         get_production_insert_sql, select_companies_to_list
     )
+def read_file(filepath):
+    with open(filepath, "r") as file:
+        return file.read()
+
+def on_failure_email_alert(context):
+        """Send a custom email alert on failure."""
+        dag_run = context.get('dag_run')
+        subject = f"Airflow DAG Failure: {dag_run.dag_id}"
+        html_content = read_file('/opt/airflow/dags/airflow_task/dags_folder/email.html')
+        send_email(to=['okoliogechi74@gmail.com'], subject=subject, html_content=html_content)
+
+default_args = {
+    'owner' : "data_consult",
+    'email' : "okoliogechi74@gmail.com",
+    'email_on_failure' : True,
+    'email_on_retry' : False,
+    'retries' : 3,
+    'retry_delay' : timedelta(minutes=2)
+}
+
 #Utilizing the domain dag for wikipedia
 @dag(
     #DAG definition using the dag decorator
     dag_id='wikipedia_dag',
+    default_args=default_args,
     start_date=datetime(2025, 12, 30),
     schedule=None,
     catchup=False,
+    on_failure_callback=on_failure_email_alert,
     tags=['snowflake', 'wiki_page_views']
 )
 def wikipedia_pipeline():
@@ -30,6 +52,7 @@ def wikipedia_pipeline():
     #Acessing file path for .py files
     @task.branch(task_id="check_file_exists") #Using TaskFlow API alongside its decorator
     def check_ext_task(folder_path): #Checking file path
+        from pathlib import Path
         folder = Path(folder_path) #Folder path
         return "setup_snowflake" if list(folder.glob("*.gz")) else "download_file"
 
@@ -51,9 +74,8 @@ def wikipedia_pipeline():
     #Parsing file from .gz into temp. storage
     @task(task_id="parse_file_to_csv")
     def parse_to_csv():
+        from airflow_task.scripts.file_parser import dataframe_parser
         """ CSV parsinf for temporary storage"""
-        #File importation inside function to prevent dag failures
-
         return dataframe_parser()
 
     #Uploading file to staging table
@@ -83,6 +105,7 @@ def wikipedia_pipeline():
         sql=select_companies_to_list(),
         do_xcom_push=True
     )
+
     #CHecking file path
     path_decision = check_ext_task("/opt/airflow/dags/airflow_task")
     csv_path = parse_to_csv() #CSV file path
@@ -92,4 +115,4 @@ def wikipedia_pipeline():
     download_file >> setup_snowflake #File is available, setup Snowflake
     setup_snowflake >> csv_path >> upload_to_stage(csv_path) >> copy_to_staging >> insert_prod >> analyze_data  #Setup Snowflake,upload data
 
-wikipedia_pipeline() #Function fot the decorator
+wikipedia_pipeline() #Function for the decorator
