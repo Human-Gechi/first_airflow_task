@@ -13,5 +13,5 @@ time=220000
 
 #url
 url="https://dumps.wikimedia.org/other/pageviews/2025/2025-12/pageviews-${today}-${time}.gz"
-cd /opt/airflow/dags/airflow_task
+cd /tmp/pageviews.gz
 curl -LO ${url}
