@@ -49,13 +49,6 @@ default_args = {
 )
 def wikipedia_pipeline():
     """ Getting the using TaskFlow API pipeline running """
-    #Acessing file path for .py files
-    @task.branch(task_id="check_file_exists") #Using TaskFlow API alongside its decorator
-    def check_ext_task(folder_path): #Checking file path
-        from pathlib import Path
-        folder = Path(folder_path) #Folder path
-        return "setup_snowflake" if list(folder.glob("*.gz")) else "download_file"
-
     #BashOperator for file download
     download_file = BashOperator(
         task_id="download_file",
@@ -107,11 +100,8 @@ def wikipedia_pipeline():
     )
 
     #CHecking file path
-    path_decision = check_ext_task("/opt/airflow/dags/airflow_task")
     csv_path = parse_to_csv() #CSV file path
-
-    #Defining dependencies
-    path_decision >> [download_file, setup_snowflake] #Checks existence of file and downloads then setup
+    
     download_file >> setup_snowflake #File is available, setup Snowflake
     setup_snowflake >> csv_path >> upload_to_stage(csv_path) >> copy_to_staging >> insert_prod >> analyze_data  #Setup Snowflake,upload data
 

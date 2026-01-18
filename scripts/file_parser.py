@@ -4,15 +4,9 @@ from pathlib import Path
 from airflow_task.scripts.logs import logger
 import hashlib
 
-def get_gz_file(folder_path):
-    """ Gets .gz file path"""
-    folder = Path(folder_path)
-    gz_files = list(folder.glob("*.gz"))
-    return gz_files[0] if gz_files else None
-
 def dataframe_parser():
     """Parses .gz and writes a clean CSV for Snowflake COPY INTO."""
-    input_path = get_gz_file("/opt/airflow/dags/airflow_task") #folder path for .gz file
+    input_path = "/tmp/pageviews.gz" #folder path for .gz file
     output_path = "/tmp/wikipedia.csv" #temporary storage of csv file
 
     if not input_path:
