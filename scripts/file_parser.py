@@ -1,38 +1,41 @@
 import gzip
 import csv
-from pathlib import Path
-from airflow_task.scripts.logs import logger
-import hashlib
+
+def write_chunk(rows, index):
+    #Output paths for chunked files
+    output_path = f"/tmp/wikipedia_pageviews_{index}.csv"
+    with open(output_path, "w", newline="", encoding="utf-8") as f_out:
+        writer = csv.writer(f_out, delimiter='|')
+        writer.writerows(rows)
+    print(f"Saved {output_path}")
 
 def dataframe_parser():
-    """Parses .gz and writes a clean CSV for Snowflake COPY INTO."""
-    input_path = "/tmp/pageviews.gz" #folder path for .gz file
-    output_path = "/tmp/wikipedia.csv" #temporary storage of csv file
+    """Chunk files into rows of 1million """
+    current_chunk_rows = []
+    chunk_count = 0
+    chunk_size = 1000000
+    #Input .gz file
+    with gzip.open("/tmp/wikipedia_pageviews.gz", "rt") as f_in:
+        for line in f_in:
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            #Splitting data intor respective parts
+            try:
+                domain = parts[0].replace('""', "").strip()
+                title = " ".join(parts[1:-2]).strip()
+                views = int(parts[-2])
+                bytes_size = int(parts[-1])
+                current_chunk_rows.append([domain, title, views, bytes_size])
 
-    if not input_path:
-        logger.error("No input file found.") #Error message id no file found
-        return None
+                #Handling file chunking
+                if len(current_chunk_rows) >= chunk_size:
+                    write_chunk(current_chunk_rows, chunk_count)
+                    current_chunk_rows = []
+                    chunk_count += 1
 
-    logger.info(f"Parsing {input_path} into {output_path}") #Info: Parsing .gz into the temp. storage
-
-    with gzip.open(input_path, "rt", encoding="utf-8", errors="replace") as f_in: #Reading .gz file as f_in
-        with open(output_path, "w", newline="", encoding="utf-8") as f_out: #Opening file in the output path as f_out to write as CSV
-            writer = csv.writer(f_out, delimiter='|') #CSV writer
-
-            for line in f_in: #Loop in input path/ file
-                parts = line.split() #Splitting data on space
-                if len(parts) < 4: #Lenght of splitted parts = 3
-                    continue
-                try: #Try, Except , Block
-                    domain = parts[0].replace('""', "").strip() #First part before space
-                    title = " ".join(parts[1:-2]).strip() #Accessing the title using negative and positive indexing to avoid errors
-                    views =  int(parts[-2]) #Negative indexing accessing second to the last data item
-                    bytes_size = int(parts[-1]) #Negative indexing accessing last item
-                    hashkey = f"{title[1:4].lower()}|{views}|2025-12-01"
-                    encode_hash = hashkey.encode('utf-8')
-                    hash_object = hashlib.sha256(encode_hash).hexdigest()
-                    writer.writerow([domain, title, views, bytes_size,hash_object]) #Write each row to output file in the output path
-                except (ValueError, IndexError): #Do nothing if an error occured
-                    continue
-
-    return output_path #Return output path
+            except (ValueError, IndexError):
+                continue
+        #Write last set of rows if < 1000000
+        if current_chunk_rows:
+            write_chunk(current_chunk_rows, chunk_count)

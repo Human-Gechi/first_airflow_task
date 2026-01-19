@@ -39,7 +39,7 @@ default_args = {
 #Utilizing the domain dag for wikipedia
 @dag(
     #DAG definition using the dag decorator
-    dag_id='wikipedia_dag',
+    dag_id='wikipedia_page_views',
     default_args=default_args,
     start_date=datetime(2025, 12, 30),
     schedule=None,
@@ -53,7 +53,8 @@ def wikipedia_pipeline():
     download_file = BashOperator(
         task_id="download_file",
         bash_command="bash download.sh ",
-        cwd="/opt/airflow/dags/airflow_task/dags_folder"
+        cwd="/opt/airflow/dags/airflow_task/dags_folder",
+        execution_timeout = timedelta(minutes=10)
     )
 
     #Setting up Snowflake using the get_setup_sql func.
@@ -64,24 +65,35 @@ def wikipedia_pipeline():
         trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS
     )
 
-    #Parsing file from .gz into temp. storage
-    @task(task_id="parse_file_to_csv")
-    def parse_to_csv():
+        #Parsing file from .gz into temp. storage
+    def parse_file_to_csv_task(**kwargs):
         from airflow_task.scripts.file_parser import dataframe_parser
-        """ CSV parsinf for temporary storage"""
-        return dataframe_parser()
+        # This function manages its own rows and indices internally
+        output_directory = dataframe_parser()
+        return output_directory
 
-    #Uploading file to staging table
+    #parsring_.gz files_to_Csv
+    parse_task = PythonOperator(
+        task_id='parse_file_to_csv',
+        python_callable=parse_file_to_csv_task,
+    )
+    
+    #Uploading chunked files to staging table
     @task(task_id="upload_to_stage")
-    def upload_to_stage(local_csv_path):
+    def upload_to_stage():
         hook = SnowflakeHook(snowflake_conn_id='snowflake_hook')
-        hook.run(f"PUT file://{local_csv_path} @WIKI_STAGING_STAGE OVERWRITE=TRUE")
+        hook.run("PUT file:///tmp/wikipedia_pageviews_*.csv @WIKI_STAGING_STAGE;")
 
     #COPYING data into staging
     copy_to_staging = SQLExecuteQueryOperator(
         task_id="copy_into_staging",
         conn_id='snowflake_hook',
         sql=get_copy_sql()
+    )
+    # Delete the raw .gz and all chunked CSV files in /tmp directory
+    cleanup_temp_files = BashOperator(
+        task_id='cleanup_temp_files',
+        bash_command='rm -f /tmp/wikipedia_pageviews.gz /tmp/wikipedia_pageviews_*.csv',
     )
 
     #Inserting into production table
@@ -99,10 +111,7 @@ def wikipedia_pipeline():
         do_xcom_push=True
     )
 
-    #CHecking file path
-    csv_path = parse_to_csv() #CSV file path
-    
     download_file >> setup_snowflake #File is available, setup Snowflake
-    setup_snowflake >> csv_path >> upload_to_stage(csv_path) >> copy_to_staging >> insert_prod >> analyze_data  #Setup Snowflake,upload data
+    setup_snowflake >> parse_task >> upload_to_stage() >> copy_to_staging >>cleanup_temp_files >>insert_prod >> analyze_data  #Setup Snowflake,upload data
 
 wikipedia_pipeline() #Function for the decorator

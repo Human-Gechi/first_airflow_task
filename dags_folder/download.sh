@@ -11,7 +11,7 @@ hour=22
 time="${hour}0000"
 time=220000
 
-#url
+# url
 url="https://dumps.wikimedia.org/other/pageviews/2025/2025-12/pageviews-${today}-${time}.gz"
-cd /tmp/pageviews.gz
-curl -LO ${url}
+# Download to /tmp/ tmeporay folder
+curl -L "${url}" -o /tmp/wikipedia_pageviews.gz

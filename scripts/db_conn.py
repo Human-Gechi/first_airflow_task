@@ -1,12 +1,3 @@
-#Necessary Libraries for the task
-import os
-from dotenv import load_dotenv
-from airflow_task.scripts.logs import logger
-from cryptography.fernet import Fernet
-
-
-load_dotenv()
-
 def get_setup_sql():
     """SQL code for creating tables and stage"""
     return  """   -- Create staging and final tables
@@ -15,7 +6,6 @@ def get_setup_sql():
                 PAGE_TITLE STRING,
                 VIEW_COUNT NUMBER,
                 RESPONSE_IN_BYTES NUMBER,
-                HASH_KEY STRING, 
                 LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
             );
             CREATE TABLE IF NOT EXISTS WIKI_PAGES_VIEWS_FINAL (
@@ -23,7 +13,6 @@ def get_setup_sql():
                 PAGE_TITLE STRING, 
                 VIEW_COUNT NUMBER,
                 RESPONSE_IN_BYTES NUMBER,
-                HASH_KEY STRING,
                 LOADED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 
             );
@@ -33,34 +22,35 @@ def get_setup_sql():
 def get_copy_sql():
     """SQL code for uploading instead of loading with_pandas to prevent signal_9 errors in Airflow"""
     return """
-        COPY INTO WIKI_PAGES_VIEWS_STAGING
-        FROM @WIKI_STAGING_STAGE
-        FILE_FORMAT = (
-            TYPE = 'CSV'
-            FIELD_DELIMITER = '|'
-            SKIP_HEADER = 0
-            FIELD_OPTIONALLY_ENCLOSED_BY = '"'
-        )
-        ON_ERROR = 'CONTINUE';
-    """
+
+        COPY INTO WIKI_PAGES_VIEWS_STAGING (
+        DOMAIN_CODE,
+        PAGE_TITLE,
+        VIEW_COUNT,
+        RESPONSE_IN_BYTES,
+        LOADED_AT
+    )
+    FROM (
+    SELECT
+        $1, -- domain_code
+        $2, -- page_title
+        $3, -- view_count
+        $4, -- response_in_bytes
+        CURRENT_TIMESTAMP() 
+    FROM @WIKI_STAGING_STAGE
+    )
+    FILE_FORMAT = (TYPE = CSV FIELD_DELIMITER = '|' SKIP_HEADER = 0)
+    ON_ERROR = CONTINUE;
+        """
 
 def get_production_insert_sql():
     """SQL code for moving data to the final layer."""
     # Function to select just required companies e.g Amazon, Microsoft,Apple etc
     return """
-      MERGE INTO WIKI_PAGES_VIEWS_FINAL AS target
-        USING (
-            SELECT DOMAIN_CODE, PAGE_TITLE, VIEW_COUNT, RESPONSE_IN_BYTES, HASH_KEY
-            FROM WIKI_PAGES_VIEWS_STAGING
-            WHERE PAGE_TITLE IN ('Amazon', 'Microsoft', 'Apple', 'Facebook', 'Google')
-            -- Deduplicate within staging first
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY HASH_KEY) = 1
-        ) AS source
-        ON target.HASH_KEY = source.HASH_KEY
-
-    WHEN NOT MATCHED THEN
-        INSERT (DOMAIN_CODE, PAGE_TITLE, VIEW_COUNT, RESPONSE_IN_BYTES, HASH_KEY)
-        VALUES (source.DOMAIN_CODE, source.PAGE_TITLE, source.VIEW_COUNT, source.RESPONSE_IN_BYTES, source.HASH_KEY);
+        INSERT INTO WIKI_PAGES_VIEWS_FINAL (DOMAIN_CODE, PAGE_TITLE, VIEW_COUNT, RESPONSE_IN_BYTES)
+        SELECT DOMAIN_CODE, PAGE_TITLE, VIEW_COUNT, RESPONSE_IN_BYTES
+        FROM WIKI_PAGES_VIEWS_STAGING
+        WHERE PAGE_TITLE IN ('Amazon', 'Microsoft', 'Apple', 'Facebook', 'Google');
     """
 
 def select_companies_to_list():

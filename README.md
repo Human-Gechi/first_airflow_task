@@ -62,6 +62,9 @@ To run this pipeline locally:
     Set up your Snowflake credentials in the Airflow UI under `Admin > Connections` to allow the **SnowflakeHook** to authenticate.
 
 ---
+**Challenges Encountered**
+
+---
 
 ## 👤 About the Author
 **Ogechukwu Abimbola Okoli**
