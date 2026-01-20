@@ -63,7 +63,10 @@ To run this pipeline locally:
 
 ---
 **Challenges Encountered**
+* **Network Delays** : Network delays were experienced when i tried loading 8+ Million data into snowflake at a goal. This challenge was rectified by utilizing chunking data into 1 miilion rows per insertion.
 
+* **Duplicated files in /tmp in Airflow's containers**: After repeatedly running the pipeline each time changing the file names of the chunked.csv files, i began having over 25 million rows. This challenge was rectified by running rm -f on all the created files in the /tmp. 
+* **Snowflake Configuration on Airflow** : There were issues with knowing which  was the correct credential for creating a snowflake connection. This was rectified after several searches and trial and error to see what works.
 ---
 
 ## 👤 About the Author
@@ -72,4 +75,4 @@ To run this pipeline locally:
 I help **scale data pipelines** by building the "digital plumbing" that moves and cleans information.
 
 * **Focus:** Building reliable and scalable data pipelines
-* **LinkedIn:**
+* **LinkedIn:** https://shorturl.at/PwBSf
